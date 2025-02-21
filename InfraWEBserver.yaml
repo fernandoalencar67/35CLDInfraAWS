@@ -219,11 +219,4 @@ Resources:
       DeploymentConfiguration:
         MinimumHealthyPercent: 100
         MaximumPercent: 200
-      NetworkConfiguration:
-        AwsvpcConfiguration:
-          Subnets:
-            - !Ref WebServerPublicSubnet1
-          SecurityGroups:
-            - !Ref SGWEBServer
-          AssignPublicIp: ENABLED
       SchedulingStrategy: REPLICA
