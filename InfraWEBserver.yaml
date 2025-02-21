@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: Formation para WebServer 35CLD Infra com ECS
+Description: Formation para WebServer 35CLD Infra com ECS e ECR
 
 Parameters:
   VpcCidr:
@@ -18,7 +18,6 @@ Parameters:
     Type: "AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>"
     Default: "/aws/service/ecs/optimized-ami/amazon-linux-2/recommended/image_id"
     Description: "Latest Amazon ECS-Optimized AMI."
-
 
 Resources:
 
@@ -124,6 +123,7 @@ Resources:
             Action: "sts:AssumeRole"
       ManagedPolicyArns:
         - "arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceforEC2Role"
+        - "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
 
   ECSInstanceProfile:
     Type: AWS::IAM::InstanceProfile
@@ -140,7 +140,7 @@ Resources:
       IamInstanceProfile: !Ref ECSInstanceProfile
       SecurityGroupIds:
         - !Ref SGWEBServer
-      SubnetId: !Ref WebServerPublicSubnet1  # **Corrigido!**
+      SubnetId: !Ref WebServerPublicSubnet1
       UserData:
         Fn::Base64: !Sub |
           #!/bin/bash
@@ -148,3 +148,58 @@ Resources:
       Tags:
         - Key: Name
           Value: ECSInstance
+
+# ==========================
+# 4. Amazon ECR Repository
+# ==========================
+
+  WebserverImage:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: "WebserverImage"
+      ImageScanningConfiguration:
+        ScanOnPush: true
+      LifecyclePolicy:
+        LifecyclePolicyText: |
+          {
+            "rules": [
+              {
+                "rulePriority": 1,
+                "description": "Delete untagged images older than 14 days",
+                "selection": {
+                  "tagStatus": "untagged",
+                  "countType": "sinceImagePushed",
+                  "countUnit": "days",
+                  "countNumber": 14
+                },
+                "action": {
+                  "type": "expire"
+                }
+              }
+            ]
+          }
+      Tags:
+        - Key: Name
+          Value: WebserverImage
+
+# ==========================
+# 5. ECS Task Definition
+# ==========================
+
+  ECSTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: "WebserverTask"
+      ExecutionRoleArn: !GetAtt ECSInstanceRole.Arn
+      RequiresCompatibilities:
+        - "EC2"
+      NetworkMode: "bridge"
+      ContainerDefinitions:
+        - Name: "webserver-container"
+          Image: !Sub "${WebserverImage.RepositoryUri}:latest"
+          Memory: 512
+          Cpu: 256
+          Essential: true
+          PortMappings:
+            - ContainerPort: 80
+              HostPort: 80
