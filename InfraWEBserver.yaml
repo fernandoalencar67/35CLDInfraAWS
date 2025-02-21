@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: VPC Publica para WebServer 35CLD
+Description: Formation para WebServer 35CLD Infra
 
 Parameters:
   VpcCidr:
@@ -16,6 +16,9 @@ Parameters:
     Default: 10.0.3.0/24
 
 Resources:
+
+#Criação da VPC 
+
   WebServerVPC:
     Type: AWS::EC2::VPC
     Properties:
@@ -101,3 +104,28 @@ Resources:
       SubnetId: !Ref WebServerPublicSubnet3
       RouteTableId: !Ref WebServerPublicRouteTable
 
+# Security Group do WEB Server
+
+  SGWEBServer:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      # Nome do Security Group
+      GroupName: "SGWEBServer"
+      GroupDescription: "Security Group para Web Server"
+      
+      # Importa o VPC ID exportado pelo outro stack
+      VpcId: !Ref WebServerVPC
+
+      # Regras de entrada
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 177.160.133.69/32
+
+      # Regras de saída 
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          FromPort: 0
+          ToPort: 0
+          CidrIp: 0.0.0.0/0
