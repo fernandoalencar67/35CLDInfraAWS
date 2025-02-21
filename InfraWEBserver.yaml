@@ -17,11 +17,16 @@ Parameters:
 
 Resources:
 
-# Criação da VPC e recursos de rede
+# ==========================
+# 1. Criação da VPC e Rede
+# ==========================
+
   WebServerVPC:
     Type: AWS::EC2::VPC
     Properties:
       CidrBlock: !Ref VpcCidr
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
       Tags:
         - Key: Name
           Value: WebServerVPC
@@ -61,6 +66,7 @@ Resources:
       VpcId: !Ref WebServerVPC
       CidrBlock: !Ref Subnet1Cidr
       AvailabilityZone: !Select [0, !GetAZs '']
+      MapPublicIpOnLaunch: true
       Tags:
         - Key: Name
           Value: WebServerPublicSubnet1
@@ -71,12 +77,15 @@ Resources:
       SubnetId: !Ref WebServerPublicSubnet1
       RouteTableId: !Ref WebServerPublicRouteTable
 
-# Security Group do WEB Server
+# ==========================
+# 2. Security Group
+# ==========================
+
   SGWEBServer:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupName: "SGWEBServer"
-      GroupDescription: "Security Group para Web Server"
+      GroupDescription: "Security Group para Web Server e ECS"
       VpcId: !Ref WebServerVPC
       SecurityGroupIngress:
         - IpProtocol: tcp
@@ -89,7 +98,10 @@ Resources:
           ToPort: 0
           CidrIp: 0.0.0.0/0
 
-# Criação do ECS
+# ==========================
+# 3. ECS Cluster e EC2 Instance
+# ==========================
+
   ECSCluster:
     Type: AWS::ECS::Cluster
     Properties:
@@ -116,26 +128,6 @@ Resources:
       Roles:
         - !Ref ECSInstanceRole
 
-  ECSLaunchTemplate:
-    Type: AWS::EC2::LaunchTemplate
-    Properties:
-      LaunchTemplateName: "ECSLaunchTemplate"
-      LaunchTemplateData:
-        InstanceType: "t2.micro"
-        ImageId: !Ref ECSOptimizedAMI
-        IamInstanceProfile:
-          Name: !Ref ECSInstanceProfile
-        UserData:
-          Fn::Base64: !Sub |
-            #!/bin/bash
-            echo ECS_CLUSTER=${ECSCluster} >> /etc/ecs/ecs.config
-        SecurityGroupIds:
-          - !Ref SGWEBServer
-        NetworkInterfaces:
-          - AssociatePublicIpAddress: true
-            DeviceIndex: 0
-            SubnetId: !Ref WebServerPublicSubnet1
-
   ECSInstance:
     Type: AWS::EC2::Instance
     Properties:
@@ -144,7 +136,7 @@ Resources:
       IamInstanceProfile: !Ref ECSInstanceProfile
       SecurityGroupIds:
         - !Ref SGWEBServer
-      SubnetId: !Ref WebServerPublicSubnet1
+      SubnetId: !Ref WebServerPublicSubnet1  # **Corrigido!**
       UserData:
         Fn::Base64: !Sub |
           #!/bin/bash
@@ -152,6 +144,10 @@ Resources:
       Tags:
         - Key: Name
           Value: ECSInstance
+
+# ==========================
+# 4. Parâmetros e Saídas
+# ==========================
 
 Parameters:
   ECSOptimizedAMI:
