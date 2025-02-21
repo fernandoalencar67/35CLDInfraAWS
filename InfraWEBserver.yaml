@@ -8,18 +8,70 @@ Parameters:
   Subnet1Cidr:
     Type: String
     Default: 10.0.1.0/24
-  Subnet2Cidr:
-    Type: String
-    Default: 10.0.2.0/24
-  Subnet3Cidr:
-    Type: String
-    Default: 10.0.3.0/24
   ECSOptimizedAMI:
     Type: "AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>"
     Default: "/aws/service/ecs/optimized-ami/amazon-linux-2/recommended/image_id"
     Description: "Latest Amazon ECS-Optimized AMI."
 
 Resources:
+
+# ==========================
+# 1. Criação da VPC e Rede
+# ==========================
+
+  WebServerVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref VpcCidr
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: WebServerVPC
+
+  WebServerInternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: WebServerIGW
+
+  AttachInternetGateway:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref WebServerVPC
+      InternetGatewayId: !Ref WebServerInternetGateway
+
+  WebServerPublicSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref WebServerVPC
+      CidrBlock: !Ref Subnet1Cidr
+      AvailabilityZone: !Select [0, !GetAZs '']
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: WebServerPublicSubnet1
+
+# ==========================
+# 2. Security Group
+# ==========================
+
+  SGWEBServer:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: "Security Group para Web Server e ECS"
+      VpcId: !Ref WebServerVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 177.160.133.69/32
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          FromPort: 0
+          ToPort: 0
+          CidrIp: 0.0.0.0/0
 
 # ==========================
 # 3. ECS Cluster e EC2 Instance
@@ -80,6 +132,61 @@ Resources:
           Value: ECSInstance
 
 # ==========================
+# 4. Amazon ECR Repository
+# ==========================
+
+  WebserverImage:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: "webserverimage"
+      ImageScanningConfiguration:
+        ScanOnPush: true
+      LifecyclePolicy:
+        LifecyclePolicyText: |
+          {
+            "rules": [
+              {
+                "rulePriority": 1,
+                "description": "Delete untagged images older than 14 days",
+                "selection": {
+                  "tagStatus": "untagged",
+                  "countType": "sinceImagePushed",
+                  "countUnit": "days",
+                  "countNumber": 14
+                },
+                "action": {
+                  "type": "expire"
+                }
+              }
+            ]
+          }
+      Tags:
+        - Key: Name
+          Value: webserverimage
+
+# ==========================
+# 5. ECS Task Definition
+# ==========================
+
+  ECSTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: "WebserverTask"
+      ExecutionRoleArn: !GetAtt ECSInstanceRole.Arn
+      RequiresCompatibilities:
+        - "EC2"
+      NetworkMode: "bridge"
+      ContainerDefinitions:
+        - Name: "webserver-container"
+          Image: !Sub "${WebserverImage.RepositoryUri}:latest"
+          Memory: 512
+          Cpu: 256
+          Essential: true
+          PortMappings:
+            - ContainerPort: 80
+              HostPort: 80
+
+# ==========================
 # 6. ECS Service 
 # ==========================
 
@@ -96,3 +203,16 @@ Resources:
         MinimumHealthyPercent: 100
         MaximumPercent: 200
       SchedulingStrategy: REPLICA
+
+Outputs:
+  ECSClusterName:
+    Description: "ECS Cluster Name"
+    Value: !Ref ECSCluster
+
+  ECSServiceName:
+    Description: "ECS Service Name"
+    Value: !Ref ECSService
+
+  WebserverImageURI:
+    Description: "ECR Repository URI for storing Docker images"
+    Value: !GetAtt WebserverImage.RepositoryUri
