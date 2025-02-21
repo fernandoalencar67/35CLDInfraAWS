@@ -153,10 +153,10 @@ Resources:
 # 4. Amazon ECR Repository
 # ==========================
 
-  webserver-image:
+  WebserverImage:
     Type: AWS::ECR::Repository
     Properties:
-      RepositoryName: "webserver-image"
+      RepositoryName: "webserverimage"  # ✅ Correção: Sem hífen
       ImageScanningConfiguration:
         ScanOnPush: true
       LifecyclePolicy:
@@ -180,7 +180,7 @@ Resources:
           }
       Tags:
         - Key: Name
-          Value: webserver-image
+          Value: webserverimage
 
 # ==========================
 # 5. ECS Task Definition
@@ -196,7 +196,7 @@ Resources:
       NetworkMode: "bridge"
       ContainerDefinitions:
         - Name: "webserver-container"
-          Image: !Sub "${webserver-image.RepositoryUri}:latest"
+          Image: !Sub "${WebserverImage.RepositoryUri}:latest"  # ✅ Correção: Nome do recurso agora está correto
           Memory: 512
           Cpu: 256
           Essential: true
