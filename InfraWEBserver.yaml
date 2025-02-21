@@ -89,7 +89,6 @@ Resources:
   SGWEBServer:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupName: "SGWEBServer"
       GroupDescription: "Security Group para Web Server e ECS"
       VpcId: !Ref WebServerVPC
       SecurityGroupIngress:
