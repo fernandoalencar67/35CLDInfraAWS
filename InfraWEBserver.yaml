@@ -85,6 +85,7 @@ Resources:
 
   ECSService:
     Type: AWS::ECS::Service
+    DependsOn: ECSTaskDefinition
     Properties:
       Cluster: !Ref ECSCluster
       ServiceName: "WebserverService"
