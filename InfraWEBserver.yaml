@@ -5,15 +5,6 @@ Parameters:
   VpcCidr:
     Type: String
     Default: 10.0.0.0/16
-  Subnet1Cidr:
-    Type: String
-    Default: 10.0.1.0/24
-  Subnet2Cidr:
-    Type: String
-    Default: 10.0.2.0/24
-  Subnet3Cidr:
-    Type: String
-    Default: 10.0.3.0/24
 
 Resources:
 
@@ -64,7 +55,7 @@ Resources:
     Type: AWS::EC2::Subnet
     Properties:
       VpcId: !Ref WebServerVPC
-      CidrBlock: !Ref Subnet1Cidr
+      CidrBlock: 10.0.1.0/24
       AvailabilityZone: !Select [0, !GetAZs '']
       MapPublicIpOnLaunch: true
       Tags:
