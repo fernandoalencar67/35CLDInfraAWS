@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: Formation para WebServer 35CLD Infra
+Description: Formation para WebServer 35CLD Infra com ECS
 
 Parameters:
   VpcCidr:
@@ -17,8 +17,7 @@ Parameters:
 
 Resources:
 
-#Criação da VPC 
-
+# Criação da VPC e recursos de rede
   WebServerVPC:
     Type: AWS::EC2::VPC
     Properties:
@@ -66,66 +65,105 @@ Resources:
         - Key: Name
           Value: WebServerPublicSubnet1
 
-  WebServerPublicSubnet2:
-    Type: AWS::EC2::Subnet
-    Properties:
-      VpcId: !Ref WebServerVPC
-      CidrBlock: !Ref Subnet2Cidr
-      AvailabilityZone: !Select [1, !GetAZs '']
-      Tags:
-        - Key: Name
-          Value: WebServerPublicSubnet2
-
-  WebServerPublicSubnet3:
-    Type: AWS::EC2::Subnet
-    Properties:
-      VpcId: !Ref WebServerVPC
-      CidrBlock: !Ref Subnet3Cidr
-      AvailabilityZone: !Select [2, !GetAZs '']
-      Tags:
-        - Key: Name
-          Value: WebServerPublicSubnet3
-
   WebServerRouteTableAssociation1:
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
       SubnetId: !Ref WebServerPublicSubnet1
       RouteTableId: !Ref WebServerPublicRouteTable
 
-  WebServerRouteTableAssociation2:
-    Type: AWS::EC2::SubnetRouteTableAssociation
-    Properties:
-      SubnetId: !Ref WebServerPublicSubnet2
-      RouteTableId: !Ref WebServerPublicRouteTable
-
-  WebServerRouteTableAssociation3:
-    Type: AWS::EC2::SubnetRouteTableAssociation
-    Properties:
-      SubnetId: !Ref WebServerPublicSubnet3
-      RouteTableId: !Ref WebServerPublicRouteTable
-
 # Security Group do WEB Server
-
   SGWEBServer:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      # Nome do Security Group
       GroupName: "SGWEBServer"
       GroupDescription: "Security Group para Web Server"
-      
-      # Importa o VPC ID exportado pelo outro stack
       VpcId: !Ref WebServerVPC
-
-      # Regras de entrada
       SecurityGroupIngress:
         - IpProtocol: tcp
           FromPort: 80
           ToPort: 80
           CidrIp: 177.160.133.69/32
-
-      # Regras de saída 
       SecurityGroupEgress:
         - IpProtocol: -1
           FromPort: 0
           ToPort: 0
           CidrIp: 0.0.0.0/0
+
+# Criação do ECS
+  ECSCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: "MyECSCluster"
+
+  ECSInstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: "ECSInstanceRole"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service: "ec2.amazonaws.com"
+            Action: "sts:AssumeRole"
+      ManagedPolicyArns:
+        - "arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceforEC2Role"
+
+  ECSInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      InstanceProfileName: "ECSInstanceProfile"
+      Roles:
+        - !Ref ECSInstanceRole
+
+  ECSLaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateName: "ECSLaunchTemplate"
+      LaunchTemplateData:
+        InstanceType: "t2.micro"
+        ImageId: !Ref ECSOptimizedAMI
+        IamInstanceProfile:
+          Name: !Ref ECSInstanceProfile
+        UserData:
+          Fn::Base64: !Sub |
+            #!/bin/bash
+            echo ECS_CLUSTER=${ECSCluster} >> /etc/ecs/ecs.config
+        SecurityGroupIds:
+          - !Ref SGWEBServer
+        NetworkInterfaces:
+          - AssociatePublicIpAddress: true
+            DeviceIndex: 0
+            SubnetId: !Ref WebServerPublicSubnet1
+
+  ECSInstance:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: "t2.micro"
+      ImageId: !Ref ECSOptimizedAMI
+      IamInstanceProfile: !Ref ECSInstanceProfile
+      SecurityGroupIds:
+        - !Ref SGWEBServer
+      SubnetId: !Ref WebServerPublicSubnet1
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          echo ECS_CLUSTER=${ECSCluster} >> /etc/ecs/ecs.config
+      Tags:
+        - Key: Name
+          Value: ECSInstance
+
+Parameters:
+  ECSOptimizedAMI:
+    Type: "AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>"
+    Default: "/aws/service/ecs/optimized-ami/amazon-linux-2/recommended/image_id"
+    Description: "Latest Amazon ECS-Optimized AMI."
+
+Outputs:
+  ECSClusterName:
+    Description: "ECS Cluster Name"
+    Value: !Ref ECSCluster
+
+  ECSInstanceId:
+    Description: "ID of the ECS Instance"
+    Value: !Ref ECSInstance
