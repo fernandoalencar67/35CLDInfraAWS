@@ -66,12 +66,25 @@ Resources:
         - IpProtocol: tcp
           FromPort: 3000
           ToPort: 3000
-          CidrIp: 179.242.225.145/32
+          CidrIp: 0.0.0.0/0  
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0  
+        - IpProtocol: tcp
+          FromPort: 51678
+          ToPort: 51678
+          CidrIp: 0.0.0.0/0 
+        - IpProtocol: tcp
+          FromPort: 2376
+          ToPort: 2376
+          CidrIp: 0.0.0.0/0  
       SecurityGroupEgress:
         - IpProtocol: -1
           FromPort: 0
           ToPort: 0
           CidrIp: 0.0.0.0/0
+
 
 # ==========================
 # 3. ECS Cluster e EC2 Instance
