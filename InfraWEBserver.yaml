@@ -5,6 +5,20 @@ Parameters:
   VpcCidr:
     Type: String
     Default: 10.0.0.0/16
+  Subnet1Cidr:
+    Type: String
+    Default: 10.0.1.0/24
+  Subnet2Cidr:
+    Type: String
+    Default: 10.0.2.0/24
+  Subnet3Cidr:
+    Type: String
+    Default: 10.0.3.0/24
+  ECSOptimizedAMI:
+    Type: "AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>"
+    Default: "/aws/service/ecs/optimized-ami/amazon-linux-2/recommended/image_id"
+    Description: "Latest Amazon ECS-Optimized AMI."
+
 
 Resources:
 
@@ -55,7 +69,7 @@ Resources:
     Type: AWS::EC2::Subnet
     Properties:
       VpcId: !Ref WebServerVPC
-      CidrBlock: 10.0.1.0/24
+      CidrBlock: !Ref Subnet1Cidr
       AvailabilityZone: !Select [0, !GetAZs '']
       MapPublicIpOnLaunch: true
       Tags:
@@ -135,22 +149,3 @@ Resources:
       Tags:
         - Key: Name
           Value: ECSInstance
-
-# ==========================
-# 4. Parâmetros e Saídas
-# ==========================
-
-Parameters:
-  ECSOptimizedAMI:
-    Type: "AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>"
-    Default: "/aws/service/ecs/optimized-ami/amazon-linux-2/recommended/image_id"
-    Description: "Latest Amazon ECS-Optimized AMI."
-
-Outputs:
-  ECSClusterName:
-    Description: "ECS Cluster Name"
-    Value: !Ref ECSCluster
-
-  ECSInstanceId:
-    Description: "ID of the ECS Instance"
-    Value: !Ref ECSInstance
