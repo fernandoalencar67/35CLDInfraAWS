@@ -64,8 +64,8 @@ Resources:
       VpcId: !Ref WebServerVPC
       SecurityGroupIngress:
         - IpProtocol: tcp
-          FromPort: 80
-          ToPort: 80
+          FromPort: 3000
+          ToPort: 3000
           CidrIp: 179.242.225.145/32
       SecurityGroupEgress:
         - IpProtocol: -1
@@ -183,8 +183,8 @@ Resources:
           Cpu: 256
           Essential: true
           PortMappings:
-            - ContainerPort: 80
-              HostPort: 80
+            - ContainerPort: 3000
+              HostPort: 3000
 
 # ==========================
 # 6. ECS Service 
