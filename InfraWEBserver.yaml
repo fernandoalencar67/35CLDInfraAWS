@@ -156,7 +156,7 @@ Resources:
   WebserverImage:
     Type: AWS::ECR::Repository
     Properties:
-      RepositoryName: "webserverimage"  # ✅ Correção: Sem hífen
+      RepositoryName: "webserverimage"
       ImageScanningConfiguration:
         ScanOnPush: true
       LifecyclePolicy:
@@ -196,10 +196,34 @@ Resources:
       NetworkMode: "bridge"
       ContainerDefinitions:
         - Name: "webserver-container"
-          Image: !Sub "${WebserverImage.RepositoryUri}:latest"  # ✅ Correção: Nome do recurso agora está correto
+          Image: !Sub "${WebserverImage.RepositoryUri}:latest"
           Memory: 512
           Cpu: 256
           Essential: true
           PortMappings:
             - ContainerPort: 80
               HostPort: 80
+
+# ==========================
+# 6. ECS Service 
+# ==========================
+
+  ECSService:
+    Type: AWS::ECS::Service
+    Properties:
+      Cluster: !Ref ECSCluster
+      ServiceName: "WebserverService"
+      TaskDefinition: !Ref ECSTaskDefinition
+      DesiredCount: 1
+      LaunchType: EC2
+      DeploymentConfiguration:
+        MinimumHealthyPercent: 100
+        MaximumPercent: 200
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets:
+            - !Ref WebServerPublicSubnet1
+          SecurityGroups:
+            - !Ref SGWEBServer
+          AssignPublicIp: ENABLED
+      SchedulingStrategy: REPLICA
