@@ -98,6 +98,27 @@ Resources:
     Properties:
       ClusterName: "MyECSCluster"
 
+  ECSInstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service: 
+                - "ec2.amazonaws.com"
+            Action: "sts:AssumeRole"
+      ManagedPolicyArns:
+        - "arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceforEC2Role"
+        - "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
+
+  ECSInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref ECSInstanceRole
+
   ECSInstance:
     Type: AWS::EC2::Instance
     Properties:
@@ -146,48 +167,3 @@ Resources:
       ManagedPolicyArns:
         - "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
         - "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
-
-  # ==========================
-  # 6. ECS Task Definition
-  # ==========================
-
-  ECSTaskDefinition:
-    Type: AWS::ECS::TaskDefinition
-    Properties:
-      Family: "WebserverTask"
-      ExecutionRoleArn: !GetAtt ECSTaskExecutionRole.Arn
-      RequiresCompatibilities:
-        - "EC2"
-      NetworkMode: "bridge"
-      ContainerDefinitions:
-        - Name: "webserver-container"
-          Image: !Sub "${WebserverImage.RepositoryUri}:latest"
-          Memory: 512
-          Cpu: 256
-          Essential: true
-          PortMappings:
-            - ContainerPort: 3000
-              HostPort: 3000
-
-  # ==========================
-  # 7. ECS Service
-  # ==========================
-
-  ECSService:
-    Type: AWS::ECS::Service
-    DependsOn:
-      - ECSTaskDefinition
-      - ECSCluster
-      - ECSInstance
-      - WebserverImage
-    Properties:
-      Cluster: !Ref ECSCluster
-      ServiceName: "WebserverService"
-      TaskDefinition: !Ref ECSTaskDefinition
-      DesiredCount: 1
-      LaunchType: EC2
-      DeploymentConfiguration:
-        MinimumHealthyPercent: 100
-        MaximumPercent: 200
-      SchedulingStrategy: REPLICA
-
