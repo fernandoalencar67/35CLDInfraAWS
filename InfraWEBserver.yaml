@@ -15,9 +15,9 @@ Parameters:
 
 Resources:
 
-# ==========================
-# 1. Criação da VPC e Rede
-# ==========================
+  # ==========================
+  # 1. Criação da VPC e Rede
+  # ==========================
 
   WebServerVPC:
     Type: AWS::EC2::VPC
@@ -53,9 +53,9 @@ Resources:
         - Key: Name
           Value: WebServerPublicSubnet1
 
-# ==========================
-# 2. Security Group
-# ==========================
+  # ==========================
+  # 2. Security Group
+  # ==========================
 
   SGWEBServer:
     Type: AWS::EC2::SecurityGroup
@@ -79,53 +79,24 @@ Resources:
           FromPort: 2376
           ToPort: 2376
           CidrIp: 0.0.0.0/0  
+        - IpProtocol: tcp
+          FromPort: 32768
+          ToPort: 65535
+          CidrIp: 0.0.0.0/0
       SecurityGroupEgress:
         - IpProtocol: -1
           FromPort: 0
           ToPort: 0
           CidrIp: 0.0.0.0/0
 
-
-# ==========================
-# 3. ECS Cluster e EC2 Instance
-# ==========================
+  # ==========================
+  # 3. ECS Cluster e EC2 Instance
+  # ==========================
 
   ECSCluster:
     Type: AWS::ECS::Cluster
     Properties:
       ClusterName: "MyECSCluster"
-
-  ECSInstanceRole:
-    Type: AWS::IAM::Role
-    Properties:
-      RoleName: "ECSInstanceRole"
-      AssumeRolePolicyDocument:
-        Version: "2012-10-17"
-        Statement:
-          - Effect: "Allow"
-            Principal:
-              Service: 
-                - "ec2.amazonaws.com"
-                - "ecs-tasks.amazonaws.com"
-            Action: "sts:AssumeRole"
-      Policies:
-        - PolicyName: "ECSInstancePassRolePolicy"
-          PolicyDocument:
-            Version: "2012-10-17"
-            Statement:
-              - Effect: "Allow"
-                Action: "iam:PassRole"
-                Resource: !Sub "arn:aws:iam::${AWS::AccountId}:role/ECSInstanceRole"
-      ManagedPolicyArns:
-        - "arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceforEC2Role"
-        - "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
-
-  ECSInstanceProfile:
-    Type: AWS::IAM::InstanceProfile
-    Properties:
-      InstanceProfileName: "ECSInstanceProfile"
-      Roles:
-        - !Ref ECSInstanceRole
 
   ECSInstance:
     Type: AWS::EC2::Instance
@@ -140,13 +111,15 @@ Resources:
         Fn::Base64: !Sub |
           #!/bin/bash
           echo ECS_CLUSTER=${ECSCluster} >> /etc/ecs/ecs.config
+          echo ECS_ENABLE_CONTAINER_METADATA=true >> /etc/ecs/ecs.config
+          systemctl enable --now ecs
       Tags:
         - Key: Name
           Value: ECSInstance
 
-# ==========================
-# 4. Amazon ECR Repository
-# ==========================
+  # ==========================
+  # 4. Amazon ECR Repository
+  # ==========================
 
   WebserverImage:
     Type: AWS::ECR::Repository
@@ -154,38 +127,35 @@ Resources:
       RepositoryName: "webserverimage"
       ImageScanningConfiguration:
         ScanOnPush: true
-      LifecyclePolicy:
-        LifecyclePolicyText: |
-          {
-            "rules": [
-              {
-                "rulePriority": 1,
-                "description": "Delete untagged images older than 14 days",
-                "selection": {
-                  "tagStatus": "untagged",
-                  "countType": "sinceImagePushed",
-                  "countUnit": "days",
-                  "countNumber": 14
-                },
-                "action": {
-                  "type": "expire"
-                }
-              }
-            ]
-          }
-      Tags:
-        - Key: Name
-          Value: webserverimage
 
-# ==========================
-# 5. ECS Task Definition
-# ==========================
+  # ==========================
+  # 5. ECS Task Execution Role
+  # ==========================
+
+  ECSTaskExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service: 
+                - "ecs-tasks.amazonaws.com"
+            Action: "sts:AssumeRole"
+      ManagedPolicyArns:
+        - "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
+        - "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
+
+  # ==========================
+  # 6. ECS Task Definition
+  # ==========================
 
   ECSTaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Properties:
       Family: "WebserverTask"
-      ExecutionRoleArn: !GetAtt ECSInstanceRole.Arn
+      ExecutionRoleArn: !GetAtt ECSTaskExecutionRole.Arn
       RequiresCompatibilities:
         - "EC2"
       NetworkMode: "bridge"
@@ -199,13 +169,17 @@ Resources:
             - ContainerPort: 3000
               HostPort: 3000
 
-# ==========================
-# 6. ECS Service 
-# ==========================
+  # ==========================
+  # 7. ECS Service
+  # ==========================
 
   ECSService:
     Type: AWS::ECS::Service
-    DependsOn: ECSTaskDefinition
+    DependsOn:
+      - ECSTaskDefinition
+      - ECSCluster
+      - ECSInstance
+      - WebserverImage
     Properties:
       Cluster: !Ref ECSCluster
       ServiceName: "WebserverService"
@@ -217,15 +191,3 @@ Resources:
         MaximumPercent: 200
       SchedulingStrategy: REPLICA
 
-Outputs:
-  ECSClusterName:
-    Description: "ECS Cluster Name"
-    Value: !Ref ECSCluster
-
-  ECSServiceName:
-    Description: "ECS Service Name"
-    Value: !Ref ECSService
-
-  WebserverImageURI:
-    Description: "ECR Repository URI for storing Docker images"
-    Value: !GetAtt WebserverImage.RepositoryUri
