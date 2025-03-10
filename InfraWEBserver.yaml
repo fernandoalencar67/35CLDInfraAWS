@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: Formation para WebServer 35CLD Infra com ECS e ECR
+Description: FIAP 35CLD ECS WebServer completo funcional via CloudFormation
 
 Parameters:
   VpcCidr:
@@ -9,131 +9,172 @@ Parameters:
     Type: String
     Default: 10.0.1.0/24
   ECSOptimizedAMI:
-    Type: "AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>"
-    Default: "/aws/service/ecs/optimized-ami/amazon-linux-2/recommended/image_id"
-    Description: "Latest Amazon ECS-Optimized AMI."
+    Type: 'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>'
+    Default: '/aws/service/ecs/optimized-ami/amazon-linux-2/recommended/image_id'
+  EC2KeyPair:
+    Type: AWS::EC2::KeyPair::KeyName
+    Description: Escolha uma chave para SSH
 
 Resources:
 
-  # ==========================
-  # 1. Criação da VPC e Rede
-  # ==========================
-
-  WebServerVPC:
+  Fiap35CLDVPC:
     Type: AWS::EC2::VPC
     Properties:
       CidrBlock: !Ref VpcCidr
       EnableDnsSupport: true
       EnableDnsHostnames: true
-      Tags:
-        - Key: Name
-          Value: WebServerVPC
 
-  WebServerInternetGateway:
+  Fiap35CLDInternetGateway:
     Type: AWS::EC2::InternetGateway
-    Properties:
-      Tags:
-        - Key: Name
-          Value: WebServerIGW
 
-  AttachInternetGateway:
+  AttachIGW:
     Type: AWS::EC2::VPCGatewayAttachment
     Properties:
-      VpcId: !Ref WebServerVPC
-      InternetGatewayId: !Ref WebServerInternetGateway
+      VpcId: !Ref Fiap35CLDVPC
+      InternetGatewayId: !Ref Fiap35CLDInternetGateway
 
-  WebServerPublicSubnet1:
+  Fiap35CLDPublicSubnet1:
     Type: AWS::EC2::Subnet
     Properties:
-      VpcId: !Ref WebServerVPC
+      VpcId: !Ref Fiap35CLDVPC
       CidrBlock: !Ref Subnet1Cidr
-      AvailabilityZone: !Select [0, !GetAZs '']
       MapPublicIpOnLaunch: true
-      Tags:
-        - Key: Name
-          Value: WebServerPublicSubnet1
+      AvailabilityZone: !Select [0, !GetAZs '']
 
-  # ==========================
-  # 2. Security Group
-  # ==========================
+  Fiap35CLDPublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref Fiap35CLDVPC
 
-  SGWEBServer:
+  Fiap35CLDPublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: AttachIGW
+    Properties:
+      RouteTableId: !Ref Fiap35CLDPublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref Fiap35CLDInternetGateway
+
+  Fiap35CLDSubnetRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref Fiap35CLDPublicSubnet1
+      RouteTableId: !Ref Fiap35CLDPublicRouteTable
+
+  Fiap35CLDSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: "Security Group para Web Server e ECS"
-      VpcId: !Ref WebServerVPC
+      GroupDescription: FIAP 35CLD ECS Security Group
+      VpcId: !Ref Fiap35CLDVPC
       SecurityGroupIngress:
         - IpProtocol: tcp
           FromPort: 3000
           ToPort: 3000
-          CidrIp: 0.0.0.0/0  
-        - IpProtocol: tcp
-          FromPort: 443
-          ToPort: 443
-          CidrIp: 0.0.0.0/0  
-        - IpProtocol: tcp
-          FromPort: 51678
-          ToPort: 51678
-          CidrIp: 0.0.0.0/0 
-        - IpProtocol: tcp
-          FromPort: 2376
-          ToPort: 2376
-          CidrIp: 0.0.0.0/0  
-        - IpProtocol: tcp
-          FromPort: 32768
-          ToPort: 65535
           CidrIp: 0.0.0.0/0
-      SecurityGroupEgress:
-        - IpProtocol: -1
-          FromPort: 0
-          ToPort: 0
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
           CidrIp: 0.0.0.0/0
 
-  # ==========================
-  # 3. ECS Cluster, IAM e EC2 Instance
-  # ==========================
-
-  ECSCluster:
+  Fiap35CLDECSCluster:
     Type: AWS::ECS::Cluster
     Properties:
-      ClusterName: "MyECSCluster"
+      ClusterName: Fiap35CLDWebServerCluster
 
-  ECSInstanceRole:
+  Fiap35CLDECSInstanceRole:
     Type: AWS::IAM::Role
     Properties:
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
         Statement:
-          - Effect: "Allow"
+          - Effect: Allow
             Principal:
-              Service: 
-                - "ec2.amazonaws.com"
-            Action: "sts:AssumeRole"
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
       ManagedPolicyArns:
-        - "arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceforEC2Role"
-        - "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
+        - arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceforEC2Role
+        - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly
+        - arn:aws:iam::aws:policy/CloudWatchLogsFullAccess
+      Path: "/"
+      Policies:
+        - PolicyName: ECSExtraPermissions
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: "ecs:*"
+                Resource: "*"
 
-  ECSInstanceProfile:
+  Fiap35CLDECSInstanceProfile:
     Type: AWS::IAM::InstanceProfile
     Properties:
       Roles:
-        - !Ref ECSInstanceRole
+        - !Ref Fiap35CLDECSInstanceRole
 
-  ECSInstance:
+  Fiap35CLDEC2Instance:
     Type: AWS::EC2::Instance
     Properties:
-      InstanceType: "t2.micro"
+      InstanceType: t3.micro
+      KeyName: !Ref EC2KeyPair
       ImageId: !Ref ECSOptimizedAMI
-      IamInstanceProfile: !Ref ECSInstanceProfile
+      IamInstanceProfile: !Ref Fiap35CLDECSInstanceProfile
       SecurityGroupIds:
-        - !Ref SGWEBServer
-      SubnetId: !Ref WebServerPublicSubnet1
+        - !Ref Fiap35CLDSecurityGroup
+      SubnetId: !Ref Fiap35CLDPublicSubnet1
       UserData:
         Fn::Base64: !Sub |
           #!/bin/bash
-          echo ECS_CLUSTER=${ECSCluster} >> /etc/ecs/ecs.config
-          echo ECS_ENABLE_CONTAINER_METADATA=true >> /etc/ecs/ecs.config
-          systemctl enable --now ecs
-      Tags:
-        - Key: Name
-          Value: ECSInstance
+          echo "ECS_CLUSTER=${Fiap35CLDECSCluster}" >> /etc/ecs/ecs.config
+          echo "ECS_ENABLE_CONTAINER_METADATA=true" >> /etc/ecs/ecs.config
+          systemctl enable docker
+          systemctl start docker
+          docker pull amazon/amazon-ecs-agent:latest
+          docker run --detach=true --name ecs-agent \
+            --volume=/var/run/docker.sock:/var/run/docker.sock \
+            --volume=/var/log/ecs/:/log \
+            --volume=/var/lib/ecs/data:/data \
+            --net=host \
+            --env=ECS_LOGFILE=/log/ecs-agent.log \
+            --env=ECS_LOGLEVEL=info \
+            --env=ECS_DATADIR=/data \
+            --env=ECS_CLUSTER=${Fiap35CLDECSCluster} \
+            amazon/amazon-ecs-agent:latest
+
+  Fiap35CLDECSTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: Fiap35CLDWebServerTaskDef
+      Cpu: "256"
+      Memory: "512"
+      NetworkMode: bridge
+      RequiresCompatibilities:
+        - EC2
+      ContainerDefinitions:
+        - Name: fiap35cld-web-container
+          Image: amazon/amazon-ecs-sample
+          PortMappings:
+            - ContainerPort: 80
+              HostPort: 3000
+
+  Fiap35CLDECSService:
+    Type: AWS::ECS::Service
+    DependsOn: Fiap35CLDEC2Instance
+    Properties:
+      Cluster: !Ref Fiap35CLDECSCluster
+      DesiredCount: 1
+      LaunchType: EC2
+      TaskDefinition: !Ref Fiap35CLDECSTaskDefinition
+      ServiceName: "Fiap35CLDECSService"
+
+  Fiap35CLDWebServerECR:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: webserverimage
+    
+
+Outputs:
+  Fiap35CLDClusterName:
+    Value: !Ref Fiap35CLDECSCluster
+  Fiap35CLDSecurityGroupID:
+    Value: !Ref Fiap35CLDSecurityGroup
+  Fiap35CLDPublicSubnet1ID:
+    Value: !Ref Fiap35CLDPublicSubnet1
