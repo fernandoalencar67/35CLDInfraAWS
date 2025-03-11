@@ -3,8 +3,6 @@ version: 0.2
 phases:
   build:
     commands:
-      - echo "Executando o deploy da infraestrutura via CloudFormation..."
-      - aws cloudformation deploy \
-          --template-file InfraWEBserver.yaml \
-          --stack-name StackInfraWebApp \
-          --capabilities CAPABILITY_NAMED_IAM
+      - echo "Deploy da infraestrutura via CloudFormation..."
+      - aws cloudformation deploy --template-file InfraWEBserver.yaml --stack-name StackInfraWebApp --capabilities CAPABILITY_NAMED_IAM
+      
