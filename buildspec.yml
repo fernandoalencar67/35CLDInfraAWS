@@ -4,8 +4,4 @@ phases:
   build:
     commands:
       - echo "Deploy da infraestrutura via CloudFormation..."
-      - aws cloudformation deploy \
-          --template-file InfraWEBserver.yaml \
-          --stack-name StackInfraWebApp \
-          --capabilities CAPABILITY_NAMED_IAM \
-          --parameter-overrides EC2KeyPair=fernandoalencar
+      - aws cloudformation deploy --template-file InfraWEBserver.yaml --stack-name StackInfraWebApp --capabilities CAPABILITY_NAMED_IAM --parameter-overrides EC2KeyPair=fernandoalencar
