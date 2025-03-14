@@ -11,9 +11,6 @@ Parameters:
   ECSOptimizedAMI:
     Type: 'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>'
     Default: '/aws/service/ecs/optimized-ami/amazon-linux-2/recommended/image_id'
-  EC2KeyPair:
-    Type: AWS::EC2::KeyPair::KeyName
-    Description: Escolha uma chave para SSH
 
 Resources:
 
@@ -110,7 +107,6 @@ Resources:
     Type: AWS::EC2::Instance
     Properties:
       InstanceType: t3.micro
-      KeyName: !Ref EC2KeyPair
       ImageId: !Ref ECSOptimizedAMI
       IamInstanceProfile: !Ref Fiap35CLDECSInstanceProfile
       SecurityGroupIds:
