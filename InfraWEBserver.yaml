@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: FIAP 35CLD ECS WebServer completo funcional via CloudFormation Execucao
+Description: FIAP 35CLD ECS WebServer completo funcional via CloudFormation Execucao OK
 
 Parameters:
   VpcCidr:
